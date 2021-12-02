@@ -159,9 +159,11 @@ class CoolHockeyProductScraper(ProductScraper):
 class DicksSportingGoodsProductScraper(ProductScraper):
 
     def scrape_products(self, get_url):
+        # TODO: implement
         url = "https://www.dickssportinggoods.com/f/clearance-nhl?pageNumber=0&filterFacets=4539%3AJerseys%3B5495%3AMen%27s"
         pass
 
+    @staticmethod
     def price_formatter(price_string):
         pass
 
@@ -270,8 +272,6 @@ class ColoradoTeamStoreProductScraper(ShopifyProductScraper):
     def price_formatter(price_string):
         return float(price_string.replace("$","").replace("CAD","").strip())
 
-# class ColumbusTeamStoreProductScraper(ProductScraper):
-
 class DallasTeamStoreProductScraper(ShopifyProductScraper):
     def find_jersey_products(self, product_dataframe):
         ix = numpy.array(["jersey" in x.lower() for x in product_dataframe["title"]])
@@ -282,8 +282,6 @@ class DallasTeamStoreProductScraper(ShopifyProductScraper):
     @staticmethod
     def price_formatter(price_string):
         return float(price_string.replace("$", "").replace("CAD", "").strip())
-
-# class DetroitTeamStoreProductScraper(ProductScraper):
 
 class NewJerseyTeamStore(ShopifyProductScraper):
     def find_jersey_products(self, product_dataframe):
