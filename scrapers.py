@@ -4,12 +4,14 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
 import numpy
 import pandas
+from utils import price_formatter
 
 # Base classes
 class ProductScraper(ABC):
 
-    def __init__(self, url):
+    def __init__(self, url, currency=None):
         self.url = url
+        self.currency = currency
         self.domain = "https://" + urlparse(url).netloc
         self.needs_pagination = False
         self.products = []
@@ -31,14 +33,6 @@ class ProductScraper(ABC):
         # }
         pass
 
-    @staticmethod
-    @abstractmethod
-    def price_formatter(price_string):
-        # Each site uses a different string representation of price, so each site needs to implement their own formatter
-        # This should be a simple one-liner to convert for e.g. CAD 159.99 to float(159.99)
-        # should return a float value
-        pass
-
     def get_all_products(self, site_name=None):
         # Same operational loop happens on every site
         # Get the base sale page, scrape products returns a link to the next page
@@ -51,6 +45,7 @@ class ProductScraper(ABC):
         # add site name to all product items
         for p in self.products:
             p["site_name"] = site_name
+
 
 class ShopifyProductScraper(ProductScraper):
 
@@ -109,6 +104,30 @@ class ShopifyProductScraper(ProductScraper):
         raise NotImplementedError("Did you forget to implement the jersey finding logic?")
 
 
+class BigCommerceProductScraper(ProductScraper):
+
+    def scrape_products(self, product_page_url):
+        response = requests.get(product_page_url, timeout=None, headers=self.headers)
+        soup = BeautifulSoup(response.text, features="lxml")
+        products = soup.find_all("li", {"class": "product"})
+        for p in products:
+            title_card = p.find("h4", {"class": "card-title"})
+            product_card = p.find("div", {"class": "card-body"})
+            product_data = {
+                'product_name': title_card.text.strip(),
+                'product_url': urljoin(self.domain, title_card.find("a").attrs["href"]),
+                'product_image_url': "",  # images lazy-loaded on BigCommerce, so all we get is the loading image
+                'product_price': price_formatter(product_card.find_all("span", {"class": "price"})[-1].text) # sale price should be the last field here
+            }
+            self.products.append(product_data)
+
+        next_page_link = soup.find("li", {"class": "pagination-item pagination-item--next"})
+        if next_page_link is None:
+            return None
+        else:
+            return next_page_link.find("a").attrs["href"]
+
+
 # Trusted sellers
 class HockeyAuthenticProductScraper(ShopifyProductScraper):
 
@@ -121,9 +140,6 @@ class HockeyAuthenticProductScraper(ShopifyProductScraper):
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
 
-    @staticmethod
-    def price_formatter(price_string):
-        return float(price_string.replace("$","").replace("CAD","").strip())
 
 class CoolHockeyProductScraper(ProductScraper):
 
@@ -141,7 +157,7 @@ class CoolHockeyProductScraper(ProductScraper):
                 'product_name': product_item_link.text.strip(),
                 'product_url': urljoin(self.domain, product_item_link.attrs["href"]),
                 'product_image_url': product_image_container.find("img").attrs["src"],
-                'product_price': self.price_formatter(p.find("span", {"class": "price"}).text)
+                'product_price': price_formatter(p.find("span", {"class": "price"}).text)
             }
             self.products.append(product_data)
 
@@ -152,19 +168,11 @@ class CoolHockeyProductScraper(ProductScraper):
             return next_page_link.attrs["href"]
 
 
-    @staticmethod
-    def price_formatter(price_string):
-        return float(price_string.replace("CA", "").replace("$", "").strip())
-
 class DicksSportingGoodsProductScraper(ProductScraper):
 
     def scrape_products(self, get_url):
         # TODO: implement
         url = "https://www.dickssportinggoods.com/f/clearance-nhl?pageNumber=0&filterFacets=4539%3AJerseys%3B5495%3AMen%27s"
-        pass
-
-    @staticmethod
-    def price_formatter(price_string):
         pass
 
 
@@ -182,7 +190,7 @@ class FanaticsProductScraper(ProductScraper):
                 'product_name': product_card.text,
                 'product_url': urljoin(self.domain, product_card.find("a").attrs["href"]),
                 'product_image_url': product_image_container.find("a").attrs["href"].replace("//", "https://"),
-                'product_price': self.price_formatter(p.find_all("span", {"class": "sr-only"})[0].text.replace("\xa0"," "))
+                'product_price': price_formatter(p.find_all("span", {"class": "sr-only"})[0].text.replace("\xa0"," "))
             }
             self.products.append(product_data)
 
@@ -197,9 +205,6 @@ class FanaticsProductScraper(ProductScraper):
             else:
                 return None
 
-    @staticmethod
-    def price_formatter(price_string):
-        return float(price_string.replace("CAD","").replace("$","").strip())
 
 # Team stores
 class AnaheimTeamStoreProductScraper(ShopifyProductScraper):
@@ -212,9 +217,6 @@ class AnaheimTeamStoreProductScraper(ShopifyProductScraper):
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
 
-    @staticmethod
-    def price_formatter(price_string):
-        return float(price_string.replace("$","").replace("CAD","").strip())
 
 class BuffaloTeamStoreProductScraper(ShopifyProductScraper):
 
@@ -225,9 +227,6 @@ class BuffaloTeamStoreProductScraper(ShopifyProductScraper):
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
 
-    @staticmethod
-    def price_formatter(price_string):
-        return float(price_string.replace("$","").replace("CAD","").strip())
 
 class CalgaryFlamesportProductScraper(ShopifyProductScraper):
     def find_jersey_products(self, product_dataframe):
@@ -235,9 +234,6 @@ class CalgaryFlamesportProductScraper(ShopifyProductScraper):
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
 
-    @staticmethod
-    def price_formatter(price_string):
-        return float(price_string.replace("$","").replace("CAD","").strip())
 
 class CarolinaProShopProductScraper(ShopifyProductScraper):
 
@@ -248,9 +244,6 @@ class CarolinaProShopProductScraper(ShopifyProductScraper):
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
 
-    @staticmethod
-    def price_formatter(price_string):
-        return float(price_string.replace("$","").replace("CAD","").strip())
 
 class ChicagoTeamStoreProductScraper(ShopifyProductScraper):
     def find_jersey_products(self, product_dataframe):
@@ -258,9 +251,6 @@ class ChicagoTeamStoreProductScraper(ShopifyProductScraper):
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
 
-    @staticmethod
-    def price_formatter(price_string):
-        return float(price_string.replace("$","").replace("CAD","").strip())
 
 class ColoradoTeamStoreProductScraper(ShopifyProductScraper):
     def find_jersey_products(self, product_dataframe):
@@ -268,9 +258,6 @@ class ColoradoTeamStoreProductScraper(ShopifyProductScraper):
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
 
-    @staticmethod
-    def price_formatter(price_string):
-        return float(price_string.replace("$","").replace("CAD","").strip())
 
 class DallasTeamStoreProductScraper(ShopifyProductScraper):
     def find_jersey_products(self, product_dataframe):
@@ -279,20 +266,22 @@ class DallasTeamStoreProductScraper(ShopifyProductScraper):
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
 
-    @staticmethod
-    def price_formatter(price_string):
-        return float(price_string.replace("$", "").replace("CAD", "").strip())
 
-class NewJerseyTeamStore(ShopifyProductScraper):
+class LosAngelesTeamStoreProductScraper(ShopifyProductScraper):
+    def find_jersey_products(self, product_dataframe):
+        ix = numpy.array(["jersey" in x.lower() and "la kings" in y.lower() for x,y in zip(product_dataframe["product_type"], product_dataframe["title"])])
+        product_dataframe = product_dataframe[ix]
+        valid_product_ids = product_dataframe["id"].values.tolist()
+        return valid_product_ids
+
+
+class NewJerseyTeamStoreProductScraper(ShopifyProductScraper):
     def find_jersey_products(self, product_dataframe):
         ix = numpy.array(["jersey" in x.lower() for x in product_dataframe["product_type"]])
         product_dataframe = product_dataframe[ix]
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
 
-    @staticmethod
-    def price_formatter(price_string):
-        return float(price_string.replace("$", "").replace("CAD", "").strip())
 
 class NewYorkRangersTeamStore(ShopifyProductScraper):
     def find_jersey_products(self, product_dataframe):
@@ -301,9 +290,6 @@ class NewYorkRangersTeamStore(ShopifyProductScraper):
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
 
-    @staticmethod
-    def price_formatter(price_string):
-        return float(price_string.replace("$", "").replace("CAD", "").strip())
 
 class OttawaTeamStoreProductScraper(ShopifyProductScraper):
     def find_jersey_products(self, product_dataframe):
@@ -312,9 +298,6 @@ class OttawaTeamStoreProductScraper(ShopifyProductScraper):
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
 
-    @staticmethod
-    def price_formatter(price_string):
-        return float(price_string.replace("$", "").replace("CAD", "").strip())
 
 class SeattleTeamStoreProductScraper(ShopifyProductScraper):
     def find_jersey_products(self, product_dataframe):
@@ -323,9 +306,6 @@ class SeattleTeamStoreProductScraper(ShopifyProductScraper):
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
 
-    @staticmethod
-    def price_formatter(price_string):
-        return float(price_string.replace("$", "").replace("CAD", "").strip())
 
 class VanbaseProductScraper(ShopifyProductScraper):
 
@@ -337,9 +317,6 @@ class VanbaseProductScraper(ShopifyProductScraper):
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
 
-    @staticmethod
-    def price_formatter(price_string):
-        return float(price_string.replace("$","").replace("CAD","").strip())
 
 class VegasTeamStoreProductScraper(ShopifyProductScraper):
     def find_jersey_products(self, product_dataframe):
@@ -348,9 +325,6 @@ class VegasTeamStoreProductScraper(ShopifyProductScraper):
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
 
-    @staticmethod
-    def price_formatter(price_string):
-        return float(price_string.replace("$", "").replace("CAD", "").strip())
 
 class WinnipegTeamStoreProductScraper(ShopifyProductScraper):
     def find_jersey_products(self, product_dataframe):
@@ -359,6 +333,4 @@ class WinnipegTeamStoreProductScraper(ShopifyProductScraper):
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
 
-    @staticmethod
-    def price_formatter(price_string):
-        return float(price_string.replace("$", "").replace("CAD", "").strip())
+
