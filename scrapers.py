@@ -97,7 +97,7 @@ class ShopifyProductScraper(ProductScraper):
                         'variant_name': variant["title"],
                         'price': float(variant["price"]),
                         'url': urljoin(self.domain, "products/" + product["handle"]),
-                        'product_image_url': product["images"][0]["src"]
+                        'product_image_url': "" if product["images"] == [] else product["images"][0]["src"]
                     })
         df = pandas.DataFrame.from_records(sale_products, columns=["product_name", "price", "url", "product_image_url"])
         df = df.drop_duplicates()
@@ -156,6 +156,16 @@ class CoolHockeyProductScraper(ProductScraper):
     def price_formatter(price_string):
         return float(price_string.replace("CA", "").replace("$", "").strip())
 
+class DicksSportingGoodsProductScraper(ProductScraper):
+
+    def scrape_products(self, get_url):
+        url = "https://www.dickssportinggoods.com/f/clearance-nhl?pageNumber=0&filterFacets=4539%3AJerseys%3B5495%3AMen%27s"
+        pass
+
+    def price_formatter(price_string):
+        pass
+
+
 # Fanatics group pages
 class FanaticsProductScraper(ProductScraper):
 
@@ -204,6 +214,29 @@ class AnaheimTeamStoreProductScraper(ShopifyProductScraper):
     def price_formatter(price_string):
         return float(price_string.replace("$","").replace("CAD","").strip())
 
+class BuffaloTeamStoreProductScraper(ShopifyProductScraper):
+
+    def find_jersey_products(self, product_dataframe: pandas.DataFrame):
+        # TODO: Validate this logic
+        ix = numpy.array(["jersey" in x.lower() for x in product_dataframe["title"]])
+        product_dataframe = product_dataframe[ix]
+        valid_product_ids = product_dataframe["id"].values.tolist()
+        return valid_product_ids
+
+    @staticmethod
+    def price_formatter(price_string):
+        return float(price_string.replace("$","").replace("CAD","").strip())
+
+class CalgaryFlamesportProductScraper(ShopifyProductScraper):
+    def find_jersey_products(self, product_dataframe):
+        product_dataframe = product_dataframe[product_dataframe["product_type"] == "Jerseys"]
+        valid_product_ids = product_dataframe["id"].values.tolist()
+        return valid_product_ids
+
+    @staticmethod
+    def price_formatter(price_string):
+        return float(price_string.replace("$","").replace("CAD","").strip())
+
 class CarolinaProShopProductScraper(ShopifyProductScraper):
 
     def find_jersey_products(self, product_dataframe):
@@ -217,18 +250,84 @@ class CarolinaProShopProductScraper(ShopifyProductScraper):
     def price_formatter(price_string):
         return float(price_string.replace("$","").replace("CAD","").strip())
 
-class ColoradoTeamStoreProductScraper(ShopifyProductScraper):
+class ChicagoTeamStoreProductScraper(ShopifyProductScraper):
     def find_jersey_products(self, product_dataframe):
-        # TODO: validate this logic
-        ix = numpy.array(["jersey" in x.lower() and y in ["Adidas", "Fanatics"]
-                          for x,y in zip(product_dataframe["product_type"], product_dataframe["vendor"])])
-        product_dataframe = product_dataframe[ix]
+        product_dataframe = product_dataframe[product_dataframe["product_type"] == "Jersey"]
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
 
     @staticmethod
     def price_formatter(price_string):
         return float(price_string.replace("$","").replace("CAD","").strip())
+
+class ColoradoTeamStoreProductScraper(ShopifyProductScraper):
+    def find_jersey_products(self, product_dataframe):
+        product_dataframe = product_dataframe[product_dataframe["product_type"] == "Avalanche Jersey"]
+        valid_product_ids = product_dataframe["id"].values.tolist()
+        return valid_product_ids
+
+    @staticmethod
+    def price_formatter(price_string):
+        return float(price_string.replace("$","").replace("CAD","").strip())
+
+# class ColumbusTeamStoreProductScraper(ProductScraper):
+
+class DallasTeamStoreProductScraper(ShopifyProductScraper):
+    def find_jersey_products(self, product_dataframe):
+        ix = numpy.array(["jersey" in x.lower() for x in product_dataframe["title"]])
+        product_dataframe = product_dataframe[ix]
+        valid_product_ids = product_dataframe["id"].values.tolist()
+        return valid_product_ids
+
+    @staticmethod
+    def price_formatter(price_string):
+        return float(price_string.replace("$", "").replace("CAD", "").strip())
+
+# class DetroitTeamStoreProductScraper(ProductScraper):
+
+class NewJerseyTeamStore(ShopifyProductScraper):
+    def find_jersey_products(self, product_dataframe):
+        ix = numpy.array(["jersey" in x.lower() for x in product_dataframe["product_type"]])
+        product_dataframe = product_dataframe[ix]
+        valid_product_ids = product_dataframe["id"].values.tolist()
+        return valid_product_ids
+
+    @staticmethod
+    def price_formatter(price_string):
+        return float(price_string.replace("$", "").replace("CAD", "").strip())
+
+class NewYorkRangersTeamStore(ShopifyProductScraper):
+    def find_jersey_products(self, product_dataframe):
+        ix = numpy.array(["jersey" in x.lower() and y.lower() in ["fanatics", "adidas"] for x,y in zip(product_dataframe["product_type"], product_dataframe["vendor"])])
+        product_dataframe = product_dataframe[ix]
+        valid_product_ids = product_dataframe["id"].values.tolist()
+        return valid_product_ids
+
+    @staticmethod
+    def price_formatter(price_string):
+        return float(price_string.replace("$", "").replace("CAD", "").strip())
+
+class OttawaTeamStoreProductScraper(ShopifyProductScraper):
+    def find_jersey_products(self, product_dataframe):
+        ix = numpy.array(["jersey" in x.lower() and y.lower() in ["fanatics", "adidas"] for x,y in zip(product_dataframe["product_type"], product_dataframe["vendor"])])
+        product_dataframe = product_dataframe[ix]
+        valid_product_ids = product_dataframe["id"].values.tolist()
+        return valid_product_ids
+
+    @staticmethod
+    def price_formatter(price_string):
+        return float(price_string.replace("$", "").replace("CAD", "").strip())
+
+class SeattleTeamStoreProductScraper(ShopifyProductScraper):
+    def find_jersey_products(self, product_dataframe):
+        ix = numpy.array(["jersey" in x.lower() for x in product_dataframe["title"]])
+        product_dataframe = product_dataframe[ix]
+        valid_product_ids = product_dataframe["id"].values.tolist()
+        return valid_product_ids
+
+    @staticmethod
+    def price_formatter(price_string):
+        return float(price_string.replace("$", "").replace("CAD", "").strip())
 
 class VanbaseProductScraper(ShopifyProductScraper):
 
@@ -243,3 +342,25 @@ class VanbaseProductScraper(ShopifyProductScraper):
     @staticmethod
     def price_formatter(price_string):
         return float(price_string.replace("$","").replace("CAD","").strip())
+
+class VegasTeamStoreProductScraper(ShopifyProductScraper):
+    def find_jersey_products(self, product_dataframe):
+        ix = numpy.array([x.lower() in ["jersey", "game-used"] and "jersey" in y.lower() for x,y in zip(product_dataframe["product_type"], product_dataframe["title"])])
+        product_dataframe = product_dataframe[ix]
+        valid_product_ids = product_dataframe["id"].values.tolist()
+        return valid_product_ids
+
+    @staticmethod
+    def price_formatter(price_string):
+        return float(price_string.replace("$", "").replace("CAD", "").strip())
+
+class WinnipegTeamStoreProductScraper(ShopifyProductScraper):
+    def find_jersey_products(self, product_dataframe):
+        ix = numpy.array([x.lower() in ["jerseys", "game worn"] and "jersey" in y.lower() for x,y in zip(product_dataframe["product_type"], product_dataframe["title"])])
+        product_dataframe = product_dataframe[ix]
+        valid_product_ids = product_dataframe["id"].values.tolist()
+        return valid_product_ids
+
+    @staticmethod
+    def price_formatter(price_string):
+        return float(price_string.replace("$", "").replace("CAD", "").strip())

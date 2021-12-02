@@ -13,7 +13,5 @@ def test_fanatics():
     pass
 
 def test_shopify_collections():
-    scraper = scrapers["VanBase"]
-    # next_page = scraper.scrape_products(product_page_url=scraper.url)
-
-    scraper.get_all_products("VanBase")
+    scraper = scrapers["WinnipegTeamStore"]
+    scraper.get_all_products("WinnipegTeamStore")
