@@ -8,12 +8,18 @@ previous_version_path = "last_version.pkl"
 if __name__ == '__main__':
 
     # Get the new product master list
-
+    # TODO: implement multiprocessing
     product_master_list = []
+    n_sites = len(scrapers.items())
+    count = 1
 
     for site_name, scraper in scrapers.items():
+        print("Getting deals from {}, site {} of {}...".format(site_name, count, n_sites))
         scraper.get_all_products(site_name)
         product_master_list = product_master_list + scraper.products
+        count += 1
+
+    # TODO: filter out kids, youth, infant, pets shit?
 
     # Convert to dataframe
     dfout = pandas.DataFrame.from_records(product_master_list)

@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
 import requests
+from requests_html import HTMLSession
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
 import numpy
 import pandas
 from utils import price_formatter
+import json
 
 # Base classes
 class ProductScraper(ABC):
@@ -19,6 +21,7 @@ class ProductScraper(ABC):
                         'Accept-Encoding': 'gzip, deflate',
                         'Accept': '*/*',
                         'Connection': 'keep-alive'}
+        self.session = None
 
     @abstractmethod
     def scrape_products(self, get_url):
@@ -29,7 +32,7 @@ class ProductScraper(ABC):
         #   product_name:       some sort of description,
         #   product_url:        absolute URL to the product page,
         #   product_image_url:  absolute URL to product image,
-        #   price:              price (string repr)
+        #   price:              price (float repr)
         # }
         pass
 
@@ -42,9 +45,10 @@ class ProductScraper(ABC):
         while get_url is not None:
             get_url = self.scrape_products(get_url)
 
-        # add site name to all product items
+        # add site name and currency to all product items
         for p in self.products:
             p["site_name"] = site_name
+            p["currency"] = self.currency
 
 
 class ShopifyProductScraper(ProductScraper):
@@ -84,17 +88,18 @@ class ShopifyProductScraper(ProductScraper):
         sale_products = []
         for product in jersey_products:
             for variant in product["variants"]:
+                # TODO: filter out out of stock variants here somehow?
                 if variant["compare_at_price"] is not None and float(variant["compare_at_price"]) != 0.0 and float(variant["compare_at_price"]) > float(variant["price"]):
                     sale_products.append({
                         'product_id': product["id"],
                         'variant_id': variant["id"],
                         'product_name': product["title"],
                         'variant_name': variant["title"],
-                        'price': float(variant["price"]),
+                        'product_price': float(variant["price"]),
                         'url': urljoin(self.domain, "products/" + product["handle"]),
                         'product_image_url': "" if product["images"] == [] else product["images"][0]["src"]
                     })
-        df = pandas.DataFrame.from_records(sale_products, columns=["product_name", "price", "url", "product_image_url"])
+        df = pandas.DataFrame.from_records(sale_products, columns=["product_name", "product_price", "url", "product_image_url"])
         df = df.drop_duplicates()
         self.products = df.to_dict(orient='records')
 
@@ -112,9 +117,15 @@ class BigCommerceProductScraper(ProductScraper):
         products = soup.find_all("li", {"class": "product"})
         for p in products:
             title_card = p.find("h4", {"class": "card-title"})
+
+            # Filter for jerseys here, as we point at base sale page
+            title_string = title_card.text.strip()
+            if "jersey" not in title_string.lower():
+                continue
+
             product_card = p.find("div", {"class": "card-body"})
             product_data = {
-                'product_name': title_card.text.strip(),
+                'product_name': title_string,
                 'product_url': urljoin(self.domain, title_card.find("a").attrs["href"]),
                 'product_image_url': "",  # images lazy-loaded on BigCommerce, so all we get is the loading image
                 'product_price': price_formatter(product_card.find_all("span", {"class": "price"})[-1].text) # sale price should be the last field here
@@ -170,10 +181,59 @@ class CoolHockeyProductScraper(ProductScraper):
 
 class DicksSportingGoodsProductScraper(ProductScraper):
 
-    def scrape_products(self, get_url):
-        # TODO: implement
-        url = "https://www.dickssportinggoods.com/f/clearance-nhl?pageNumber=0&filterFacets=4539%3AJerseys%3B5495%3AMen%27s"
-        pass
+    def __init__(self, url, currency=None):
+        super().__init__(url=url, currency=currency)
+        self.domain = "https://dickssportinggoods.com"
+        self.api_parameters = {
+            "selectedCategory": "12301_287054",
+             "selectedStore": "0",
+             "selectedSort": 5,
+             "selectedFilters": {"4539": ["Jerseys"], "5495": ["Men\'s"]},
+             "storeId": 15108,
+             "pageNumber": 0,
+             "pageSize": 48,
+             "totalCount": 0,
+             "searchTypes": ["CLEARANCE"],
+             "isFamilyPage": True,
+             "appliedSeoFilters": False,
+             "snbAudience": "",
+             "zipcode": ""
+        }
+
+    def scrape_products(self, product_page_url):
+        # Direct calls are forbidden, gotta spoof the URL
+        spoofed_url = product_page_url + "?searchVO=" + json.dumps(self.api_parameters)
+
+        # Get the data
+        response = requests.get(spoofed_url, headers=self.headers)
+        data = response.json()
+
+        # Update the product list
+        for ix, product in enumerate(data["productVOs"]):
+            self.products.append({
+                "product_name": product["name"],
+                "product_url": urljoin(self.domain, product["dsgSeoUrl"]),
+                "product_image_url": "",  # couldn't find a consistent image url in the json payload
+                "price": data["productDetails"][product["parentCatentryId"]]["prices"]["minofferprice"]
+            })
+
+        # Check result length to determine whether we need to iterate again (if it's less than pageSize we've gotten
+        # all the products already and don't need another call
+        result_length = len(data["productVOs"])
+        if result_length >= self.api_parameters["pageSize"]:
+            # Update the page number to get next set of results
+            self.api_parameters["pageNumber"] = self.api_parameters["pageNumber"] + 1
+            # we return same url, but we've already updated the pageNumber in the API parameters, so we will get the
+            # next page on next iteration
+            return product_page_url
+        else:
+            # Terminus condition: we've already gotten all results so superclass iteration handler needs to know
+            return None
+
+
+
+
+
 
 
 # Fanatics group pages
@@ -216,7 +276,6 @@ class AnaheimTeamStoreProductScraper(ShopifyProductScraper):
         product_dataframe = product_dataframe[ix]
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
-
 
 class BuffaloTeamStoreProductScraper(ShopifyProductScraper):
 
@@ -302,6 +361,23 @@ class OttawaTeamStoreProductScraper(ShopifyProductScraper):
 class SeattleTeamStoreProductScraper(ShopifyProductScraper):
     def find_jersey_products(self, product_dataframe):
         ix = numpy.array(["jersey" in x.lower() for x in product_dataframe["title"]])
+        product_dataframe = product_dataframe[ix]
+        valid_product_ids = product_dataframe["id"].values.tolist()
+        return valid_product_ids
+
+
+class StLouisTeamStoreProductScraper(ShopifyProductScraper):
+    def find_jersey_products(self, product_dataframe):
+        ix = numpy.array(["jersey" in x.lower() and y.lower() in ["jersey","sale","game-used"] for x,y in zip(product_dataframe["title"], product_dataframe["product_type"])])
+        product_dataframe = product_dataframe[ix]
+        valid_product_ids = product_dataframe["id"].values.tolist()
+        return valid_product_ids
+
+
+class TorontoTeamStoreProductScraper(ShopifyProductScraper):
+
+    def find_jersey_products(self, product_dataframe: pandas.DataFrame):
+        ix = numpy.array(["jersey" in x.lower() and y.lower() in ["jersey","game worn"] for x,y in zip(product_dataframe["title"], product_dataframe["product_type"])])
         product_dataframe = product_dataframe[ix]
         valid_product_ids = product_dataframe["id"].values.tolist()
         return valid_product_ids
