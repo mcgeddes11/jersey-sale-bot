@@ -46,6 +46,7 @@ class ProductScraper(ABC):
             get_url = self.scrape_products(get_url)
 
         # add site name and currency to all product items
+        # TODO: add filter to remove kids stuff?
         for p in self.products:
             p["site_name"] = site_name
             p["currency"] = self.currency
@@ -229,11 +230,6 @@ class DicksSportingGoodsProductScraper(ProductScraper):
         else:
             # Terminus condition: we've already gotten all results so superclass iteration handler needs to know
             return None
-
-
-
-
-
 
 
 # Fanatics group pages
