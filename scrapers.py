@@ -7,6 +7,8 @@ import numpy
 import pandas
 from utils import price_formatter
 import json
+from multiprocessing import Queue
+
 
 # Base classes
 class ProductScraper(ABC):
@@ -22,6 +24,7 @@ class ProductScraper(ABC):
                         'Accept': '*/*',
                         'Connection': 'keep-alive'}
         self.session = None
+        self.queue = None
 
     @abstractmethod
     def scrape_products(self, get_url):
@@ -50,6 +53,14 @@ class ProductScraper(ABC):
         for p in self.products:
             p["site_name"] = site_name
             p["currency"] = self.currency
+
+        # This bit supports multiprocessing
+        if self.queue is not None:
+            self.queue.put(self.products)
+
+    # Internal function for setting the results queue to support multiprocessing. Used by the orchestrator only
+    def _set_queue(self, queue: Queue):
+        self.queue = queue
 
 
 class ShopifyProductScraper(ProductScraper):
@@ -230,6 +241,74 @@ class DicksSportingGoodsProductScraper(ProductScraper):
         else:
             # Terminus condition: we've already gotten all results so superclass iteration handler needs to know
             return None
+
+
+class RiverCitySportsProductScraper(ProductScraper):
+
+    def scrape_products(self, product_page_url):
+
+        response = requests.get(product_page_url, timeout=None, headers=self.headers)
+        soup = BeautifulSoup(response.text, features="lxml")
+        potential_products = soup.find("form", {"action": "viewproducts-06.cfm"}).find_all("td")
+        for p in potential_products:
+            # these are separators, skip
+            if "colspan" in p.attrs.keys():
+                continue
+            product_details = p.find_all("a")
+            text_details = product_details[1]
+            image_details = product_details[0]
+            product_name = text_details.text
+            # filter for jerseys only
+            lowername = product_name.lower()
+            if "jersey" in lowername and "hoody" not in lowername:
+                # Weird products that are on sale but not discounted?
+                sale_price = p.find("span", {"class": "normalred"})
+                if sale_price is not None:
+                    product_price = price_formatter(sale_price.text)
+                else:
+                    product_price = price_formatter(p.find_all("div")[-1].text)
+                product_data = {
+                    'product_name': product_name,
+                    'product_url': urljoin(self.domain, "CDA/" + text_details.attrs["href"]),
+                    'product_image_url': urljoin(self.domain, image_details.find("img")["src"].replace("..","")),
+                    'product_price': product_price
+                }
+                self.products.append(product_data)
+
+        next_page_link = soup.find("input", {"name": "next"})
+        if next_page_link is None:
+            return None
+        else:
+            # Find what we are starting at
+            startat_numstring = product_page_url.split("=")[-1]
+            old_startat_value = "&startAt=" + startat_numstring
+            # Get new value and replace in URL
+            new_startat_value = "&startAt=" + str(int(startat_numstring) + 249)
+            next_product_url = product_page_url.replace(old_startat_value, new_startat_value)
+            return next_product_url
+
+
+class SvpSportsProductScraper(ShopifyProductScraper):
+
+    def find_jersey_products(self, product_dataframe: pandas.DataFrame):
+        # This excludes womens/kids products
+        product_dataframe = product_dataframe[product_dataframe["product_type"] == "Mens Apparel"]
+        # Gets jerseys only
+        ix = numpy.array([x.lower() in ["adidas", "fanatics", "reebok"] and "jersey" in y.lower() for x, y in
+                          zip(product_dataframe["vendor"], product_dataframe["title"])])
+
+        product_dataframe = product_dataframe[ix]
+        valid_product_ids = product_dataframe["id"].values.tolist()
+        return valid_product_ids
+
+
+class HockeyJerseyOutletProductScraper(ShopifyProductScraper):
+
+    def find_jersey_products(self, product_dataframe: pandas.DataFrame):
+        ix = numpy.array(["hockey" in x.lower() for x in product_dataframe["product_type"]])
+        product_dataframe = product_dataframe[ix]
+        valid_product_ids = product_dataframe["id"].values.tolist()
+        return valid_product_ids
 
 
 # Fanatics group pages

@@ -1,5 +1,6 @@
 from scrapers import FanaticsProductScraper, HockeyAuthenticProductScraper, CoolHockeyProductScraper, \
-     BigCommerceProductScraper, DicksSportingGoodsProductScraper, \
+     BigCommerceProductScraper, DicksSportingGoodsProductScraper, RiverCitySportsProductScraper, \
+     HockeyJerseyOutletProductScraper, SvpSportsProductScraper, \
      AnaheimTeamStoreProductScraper, BuffaloTeamStoreProductScraper, CalgaryFlamesportProductScraper, \
      CarolinaProShopProductScraper, ChicagoTeamStoreProductScraper, ColoradoTeamStoreProductScraper, \
      DallasTeamStoreProductScraper, LosAngelesTeamStoreProductScraper, NewJerseyTeamStoreProductScraper, \
@@ -13,6 +14,9 @@ scrapers = {
     "HockeyAuthentic": HockeyAuthenticProductScraper("https://hockeyauthentic.com/products.json?page=1", currency="CAD"), # Validated
     "CoolHockey": CoolHockeyProductScraper("https://www.coolhockey.com/ca/sale.html", currency="CAD"), # Validated
     "DicksSportingGoods": DicksSportingGoodsProductScraper("https://prod-catalog-product-api.dickssportinggoods.com/v2/search", currency="USD"), # Validated
+    "RiverCitySports": RiverCitySportsProductScraper("https://www.rivercitysports.com/CDA/viewproducts-06.cfm?league=NHL&team=&product=&perPage=249&lastLeague=NHL&lastTeam=&lastProduct=&mode=sale&startAt=1", currency="CAD"), # Validated
+    "HockeyJerseyOutlet": HockeyJerseyOutletProductScraper("https://www.hockeyjerseyoutlet.com/products.json?page=1", currency="USD"), # Validated
+    "SvpSports": SvpSportsProductScraper("https://www.svpsports.ca/products.json?page=1", currency="CAD"), # Validated
     "AnaheimTeamStore": AnaheimTeamStoreProductScraper("https://anaheimteamstore.com/products.json?page=1", currency="USD"), # Validated
     "BostonTeamStore": BigCommerceProductScraper("https://bostonproshop.com/shop-bruins/sale/", currency='USD'), # Validated
     "BuffaloTeamStore": BuffaloTeamStoreProductScraper("https://shoponebuffalo.com/products.json?page=1", currency="USD"), # Validated

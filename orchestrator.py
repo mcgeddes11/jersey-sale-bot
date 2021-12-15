@@ -1,6 +1,7 @@
 from website_enums import scrapers
 import pandas
 import os
+from multiprocessing import Queue, Process
 
 previous_version_path = "last_version.pkl"
 
