@@ -3,7 +3,7 @@ import re
 from scrapers import DicksSportingGoodsProductScraper
 import requests
 import itertools
-from multiprocessing import Process, Queue, Pool
+from multiprocessing import Process, Queue, Pool, Manager
 
 
 def test_coolhockey():
@@ -42,8 +42,9 @@ def test_dicks_scraper():
 
 def test_rcs_scraper():
     scraper = scrapers["RiverCitySports"]
-    scraper.scrape_products(scraper.url)
-    print("Found {} products".format(len(scraper.products)))
+    scraper.get_all_products()
+    # scraper.scrape_products(scraper.url)
+    # print("Found {} products".format(len(scraper.products)))
 
 def test_scrape_all_implementations():
     scraper = scrapers["SvpSports"]
@@ -51,35 +52,15 @@ def test_scrape_all_implementations():
 
 def test_parallelization():
 
-    # Run the two parallelized
-    scraper_1 = scrapers["RiverCitySports"]
-    scraper_2 = scrapers["BostonTeamStore"]
+    scraper_list = [scrapers["RiverCitySports"], scrapers["CarolinaProShop"], scrapers["HockeyAuthentic"]]
 
-    queue = Queue()
+    process_pool = Pool(2)
 
-    scraper_1._set_queue(queue)
-    scraper_2._set_queue(queue)
+    results = [process_pool.apply_async(x.get_all_products) for x in scraper_list]
 
-    processes = [Process(target=scraper_1.get_all_products),
-                 Process(target=scraper_2.get_all_products)]
+    output = [p.get() for p in results]
 
-    for p in processes:
-        p.start()
+    flat_output = [item for sublist in output for item in sublist]
 
-    for p in processes:
-        p.join()
-
-    # Get parallelized results list
-    parallel_results = [queue.get() for p in processes]
-    parallel_results = list(itertools.chain.from_iterable(parallel_results))
-
-    # Now run them in serial and check the results match
-    scraper_1._set_queue(None)
-    scraper_2._set_queue(None)
-    scraper_1.get_all_products()
-    scraper_2.get_all_products()
-
-    assert(len(list(parallel_results)) == len(scraper_1.products) + len(scraper_2.products))
-
-
+    assert(len(flat_output) > 0)
 

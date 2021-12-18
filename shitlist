@@ -1,0 +1,9 @@
+Hockeyjerseyoutlet filter is bork - producing way too many products
+Filter out ALL kids stuff
+RCS filter is including shitty stuff like pins
+General:
+- screening for non-jerseys that have "jersey" in product title is shit
+- screening out jerseys from other sports (e.g. SVP carries soccer, Toronto carries Raptors etc)
+- text classifier layer?
+
+Dicks prices are not extracting properly - was missing price_formatter(), should be fixed now?

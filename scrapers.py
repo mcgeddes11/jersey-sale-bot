@@ -24,7 +24,6 @@ class ProductScraper(ABC):
                         'Accept': '*/*',
                         'Connection': 'keep-alive'}
         self.session = None
-        self.queue = None
 
     @abstractmethod
     def scrape_products(self, get_url):
@@ -54,13 +53,9 @@ class ProductScraper(ABC):
             p["site_name"] = site_name
             p["currency"] = self.currency
 
-        # This bit supports multiprocessing
-        if self.queue is not None:
-            self.queue.put(self.products)
-
-    # Internal function for setting the results queue to support multiprocessing. Used by the orchestrator only
-    def _set_queue(self, queue: Queue):
-        self.queue = queue
+        # Multiprocessing pool requires a return value so return final value of products list
+        print("Sale products found from {}: {}".format(site_name, len(self.products)))
+        return self.products
 
 
 class ShopifyProductScraper(ProductScraper):
@@ -226,7 +221,7 @@ class DicksSportingGoodsProductScraper(ProductScraper):
                 "product_name": product["name"],
                 "product_url": urljoin(self.domain, product["dsgSeoUrl"]),
                 "product_image_url": "",  # couldn't find a consistent image url in the json payload
-                "price": data["productDetails"][product["parentCatentryId"]]["prices"]["minofferprice"]
+                "price": price_formatter(data["productDetails"][product["parentCatentryId"]]["prices"]["minofferprice"])
             })
 
         # Check result length to determine whether we need to iterate again (if it's less than pageSize we've gotten
@@ -255,6 +250,9 @@ class RiverCitySportsProductScraper(ProductScraper):
             if "colspan" in p.attrs.keys():
                 continue
             product_details = p.find_all("a")
+            # Empty product slots at end of final page
+            if len(product_details) < 2:
+                continue
             text_details = product_details[1]
             image_details = product_details[0]
             product_name = text_details.text
